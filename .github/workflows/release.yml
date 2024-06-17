@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+    paths:
+        - '.changeset/**'
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+    build:
+        uses: ./.github/workflows/_build.yml
+    publish:
+        runs-on: ubuntu-latest
+        needs:
+          - build
+        steps:
+          - name: Create Release Pull Request or Publish
+            id: changesets
+            uses: changesets/action@v1
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

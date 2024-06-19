@@ -8,7 +8,7 @@ A portal builder inspired by caddy. It borrows a majority of code from https://g
 
 ```bash
 
-go install go.lumeweb.com/xportal@latest
+go install go.lumeweb.com/xportal/cmd/xportal@latest
 
 ```
 
@@ -16,6 +16,6 @@ go install go.lumeweb.com/xportal@latest
 
 ```bash
 
-xportal --with go.lumeweb.com/portal-plugin-account@latest
+xportal build --with go.lumeweb.com/portal-plugin-account@latest
 
 ```

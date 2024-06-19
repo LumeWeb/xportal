@@ -328,7 +328,6 @@ import (
 	portalcmd "{{.PortalPlugin}}/cmd"
 
 	// plug in Portal plugins here
-	_ "{{.PortalPlugin}}/plugins/standard"
 	{{- range .Plugins}}
 	{{- end}}
 )

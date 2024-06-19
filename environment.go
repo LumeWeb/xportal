@@ -326,6 +326,7 @@ const mainModuleTemplate = `package main
 
 import (
 	portalcmd "{{.PortalPlugin}}/cmd"
+	_ "{{.PortalPlugin}}/service"
 
 	// plug in Portal plugins here
 	{{- range .Plugins}}

@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.1.2
+
+### Patch Changes
+
+- a37fc52: Missing the default service implementation in the module template
+
 ## 0.1.1
 
 ### Patch Changes

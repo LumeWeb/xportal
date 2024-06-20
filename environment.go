@@ -330,6 +330,7 @@ import (
 
 	// plug in Portal plugins here
 	{{- range .Plugins}}
+	_ "{{.}}"
 	{{- end}}
 )
 

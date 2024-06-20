@@ -1,5 +1,14 @@
 # @lumeweb/xportal
 
+## 0.1.3
+
+### Patch Changes
+
+- b4b28e8: - Documentation update renaming the "account" plugin to "dashboard"
+  - Added Docker build process and base image creation
+  - Fixed Dockerfile to use a copy of the Golang image as the final image
+  - Refactored to remove version check as Portal does not yet support it
+
 ## 0.1.2
 
 ### Patch Changes

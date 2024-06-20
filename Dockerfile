@@ -17,13 +17,11 @@ COPY ./.git ./.git
 RUN make
 
 # Use a lightweight base image for the final stage
-FROM debian:latest AS main
+FROM golang:1.22.1 as final
 
 # Update the package lists and install CA certificates
 RUN apt-get update && apt-get install -y ca-certificates && apt-get clean
 
-# Set the working directory
-WORKDIR /portal
 
 # Copy the built binary from the go-builder stage
-COPY --from=go-builder /xportal/xportal .
+COPY --from=go-builder /xportal/xportal /usr/local/bin/xportal

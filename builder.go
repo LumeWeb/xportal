@@ -140,6 +140,13 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return err
 	}
 
+	if b.Debug {
+		vendorCmd := buildEnv.newGoModCommand(ctx, "vendor")
+		if err := buildEnv.runCommand(ctx, vendorCmd); err != nil {
+			return err
+		}
+	}
+
 	// compile
 	cmd := buildEnv.newGoBuildCommand(ctx, "build",
 		"-o", absOutputFile,

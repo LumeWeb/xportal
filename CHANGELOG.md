@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.1.5
+
+### Patch Changes
+
+- b17eb6d: Addressed issues related to templates and dependencies.
+
 ## 0.1.4
 
 ### Patch Changes

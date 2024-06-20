@@ -21,6 +21,7 @@ func init() {
 		{"github.com/gorilla/mux", "v1.8.1", "github.com/cornejong/gormux", "v0.0.0-20240526072501-ce1c97b033ec"},
 		{"github.com/tus/tusd-etcd3-locker", "v0.0.0-20200405122323-74aeca810256", "github.com/LumeWeb/tusd-etcd3-locker", "v0.0.0-20240510103936-0d66760cf053"},
 		{"github.com/tus/tusd/v2", "v2.4.0", "github.com/LumeWeb/tusd/v2", "v2.2.3-0.20240617010021-713280c42722"},
+		{"github.com/ugorji/go/codec", "v1.1.4", "github.com/ugorji/go/codec", "v1.2.7"},
 	}
 
 	// Loop through the list and create replacement rules

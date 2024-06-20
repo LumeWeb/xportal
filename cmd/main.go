@@ -14,7 +14,6 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"strings"
 )
@@ -145,22 +144,6 @@ func runBuild(ctx context.Context, args []string) error {
 	err = setcapIfRequested(output)
 	if err != nil {
 		return err
-	}
-
-	// prove the build is working by printing the version
-	if runtime.GOOS == utils.GetGOOS() && runtime.GOARCH == utils.GetGOARCH() {
-		if !filepath.IsAbs(output) {
-			output = "." + string(filepath.Separator) + output
-		}
-		fmt.Println()
-		fmt.Printf("%s version\n", output)
-		cmd := exec.Command(output, "version")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
-		if err != nil {
-			log.Fatalf("[FATAL] %v", err)
-		}
 	}
 
 	return nil

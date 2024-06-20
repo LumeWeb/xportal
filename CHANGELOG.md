@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.1.4
+
+### Patch Changes
+
+- 6aed372: vendor dependencies in debug node
+
 ## 0.1.3
 
 ### Patch Changes

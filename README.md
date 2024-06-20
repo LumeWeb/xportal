@@ -16,6 +16,6 @@ go install go.lumeweb.com/xportal/cmd/xportal@latest
 
 ```bash
 
-xportal build --with go.lumeweb.com/portal-plugin-account@latest
+xportal build --with go.lumeweb.com/portal-plugin-dashboard@latest
 
 ```

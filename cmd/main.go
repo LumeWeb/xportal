@@ -34,7 +34,14 @@ func Main() {
 	go trapSignals(ctx, cancel)
 
 	if len(os.Args) > 1 && os.Args[1] == "build" {
-		if err := runBuild(ctx, os.Args[2:]); err != nil {
+		if err := runBuild(ctx, os.Args[2:], false); err != nil {
+			log.Fatalf("[ERROR] %v", err)
+		}
+		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "scratch" {
+		if err := runBuild(ctx, os.Args[2:], true); err != nil {
 			log.Fatalf("[ERROR] %v", err)
 		}
 		return
@@ -50,11 +57,18 @@ func Main() {
 	}
 }
 
-func runBuild(ctx context.Context, args []string) error {
+func runBuild(ctx context.Context, args []string, scratchMode bool) error {
 	// parse the command line args... rather primitively
 	var argPortalVersion, output string
 	var plugins []xportal.Dependency
 	var replacements []xportal.Replace
+	var scratchPath string
+
+	if scratchMode {
+		scratchPath = args[0]
+		args = args[1:]
+	}
+
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--with", "--replace":
@@ -125,10 +139,12 @@ func runBuild(ctx context.Context, args []string) error {
 		Replacements:  replacements,
 		RaceDetector:  raceDetector,
 		SkipBuild:     skipBuild,
-		SkipCleanup:   skipCleanup,
+		SkipCleanup:   skipCleanup || scratchMode,
 		Debug:         buildDebugOutput,
 		BuildFlags:    buildFlags,
 		ModFlags:      modFlags,
+		ScratchMode:   scratchMode,
+		ScratchPath:   scratchPath,
 	}
 	err := builder.Build(ctx, output)
 	if err != nil {
@@ -136,7 +152,7 @@ func runBuild(ctx context.Context, args []string) error {
 	}
 
 	// done if we're skipping the build
-	if builder.SkipBuild {
+	if builder.SkipBuild || scratchMode {
 		return nil
 	}
 

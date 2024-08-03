@@ -65,20 +65,30 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		return nil, err
 	}
 
-	// create the folder in which the build environment will operate
-	tempFolder, err := newTempFolder()
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
+	var tempFolder string
+
+	if b.ScratchMode {
+		tempFolder = b.ScratchPath
+		err = os.MkdirAll(tempFolder, 0755)
 		if err != nil {
-			err2 := os.RemoveAll(tempFolder)
-			if err2 != nil {
-				err = fmt.Errorf("%w; additionally, cleaning up folder: %v", err, err2)
-			}
+			return nil, err
 		}
-	}()
-	log.Printf("[INFO] Temporary folder: %s", tempFolder)
+	} else {
+		// create the folder in which the build environment will operate
+		tempFolder, err = newTempFolder()
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if err != nil {
+				err2 := os.RemoveAll(tempFolder)
+				if err2 != nil {
+					err = fmt.Errorf("%w; additionally, cleaning up folder: %v", err, err2)
+				}
+			}
+		}()
+		log.Printf("[INFO] Temporary folder: %s", tempFolder)
+	}
 
 	// write the main module file to temporary folder
 	mainPath := filepath.Join(tempFolder, "main.go")
@@ -94,7 +104,7 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		portalModulePath: portalModulePath,
 		tempFolder:       tempFolder,
 		timeoutGoGet:     b.TimeoutGet,
-		skipCleanup:      b.SkipCleanup,
+		skipCleanup:      b.SkipCleanup || b.ScratchMode,
 		buildFlags:       b.BuildFlags,
 		modFlags:         b.ModFlags,
 	}

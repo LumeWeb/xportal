@@ -48,6 +48,8 @@ type Builder struct {
 	Debug         bool          `json:"debug,omitempty"`
 	BuildFlags    string        `json:"build_flags,omitempty"`
 	ModFlags      string        `json:"mod_flags,omitempty"`
+	ScratchMode   bool          `json:"scratch_mode,omitempty"`
+	ScratchPath   string        `json:"scratch_path,omitempty"`
 }
 
 // Build builds Port at the configured version with the
@@ -58,7 +60,7 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		ctx, cancel = context.WithTimeout(ctx, b.TimeoutBuild)
 		defer cancel()
 	}
-	if outputFile == "" {
+	if outputFile == "" && !b.ScratchMode {
 		return fmt.Errorf("output file path is required")
 	}
 	// the user's specified output file might be relative, and
@@ -70,6 +72,13 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return err
 	}
 	log.Printf("[INFO] absolute output file path: %s", absOutputFile)
+
+	if b.ScratchMode {
+		b.ScratchPath, err = filepath.Abs(b.ScratchPath)
+		if err != nil {
+			return err
+		}
+	}
 
 	// set some defaults from the environment, if applicable
 	if b.OS == "" {
@@ -145,6 +154,10 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		if err := buildEnv.runCommand(ctx, vendorCmd); err != nil {
 			return err
 		}
+	}
+
+	if b.ScratchMode {
+		return nil
 	}
 
 	// compile

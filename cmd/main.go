@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.lumeweb.com/xportal"
-	"go.lumeweb.com/xportal/internal/utils"
 	"io"
 	"log"
 	"os"
@@ -16,6 +14,9 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+
+	"go.lumeweb.com/xportal"
+	"go.lumeweb.com/xportal/internal/utils"
 )
 
 var (
@@ -33,229 +34,18 @@ func Main() {
 	defer cancel()
 	go trapSignals(ctx, cancel)
 
-	if len(os.Args) > 1 && os.Args[1] == "build" {
-		if err := runBuild(ctx, os.Args[2:], false); err != nil {
-			log.Fatalf("[ERROR] %v", err)
-		}
-		return
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
-
-	if len(os.Args) > 1 && os.Args[1] == "scratch" {
-		if err := runBuild(ctx, os.Args[2:], true); err != nil {
-			log.Fatalf("[ERROR] %v", err)
-		}
-		return
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Println(xportalVersion())
-		return
-	}
-
-	if err := runDev(ctx, os.Args[1:]); err != nil {
-		log.Fatalf("[ERROR] %v", err)
-	}
-}
-
-func runBuild(ctx context.Context, args []string, scratchMode bool) error {
-	// parse the command line args... rather primitively
-	var argPortalVersion, output string
-	var plugins []xportal.Dependency
-	var replacements []xportal.Replace
-	var scratchPath string
-
-	if scratchMode {
-		scratchPath = args[0]
-		args = args[1:]
-	}
-
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--with", "--replace":
-			arg := args[i]
-			if i == len(args)-1 {
-				return fmt.Errorf("expected value after %s flag", arg)
-			}
-			i++
-			mod, ver, repl, err := splitWith(args[i])
-			if err != nil {
-				return err
-			}
-			mod = strings.TrimSuffix(mod, "/") // easy to accidentally leave a trailing slash if pasting from a URL, but is invalid for Go modules
-			if arg == "--with" {
-				plugins = append(plugins, xportal.Dependency{
-					PackagePath: mod,
-					Version:     ver,
-				})
-			}
-
-			if arg != "--with" && repl == "" {
-				return fmt.Errorf("expected value after --replace flag")
-			}
-			if repl != "" {
-				// adjust relative replacements in current working directory since our temporary module is in a different directory
-				if strings.HasPrefix(repl, ".") {
-					repl, err = filepath.Abs(repl)
-					if err != nil {
-						log.Fatalf("[FATAL] %v", err)
-					}
-					log.Printf("[INFO] Resolved relative replacement %s to %s", args[i], repl)
-				}
-				replacements = append(replacements, xportal.NewReplace(xportal.Dependency{PackagePath: mod, Version: ver}.String(), repl))
-			}
-		case "--output":
-			if i == len(args)-1 {
-				return fmt.Errorf("expected value after --output flag")
-			}
-			i++
-			output = args[i]
-		default:
-			if argPortalVersion != "" {
-				return fmt.Errorf("missing flag; portal version already set at %s", argPortalVersion)
-			}
-			argPortalVersion = args[i]
-		}
-	}
-
-	replacements = append(replacements, defaultReplacements...)
-
-	// prefer portal version from command line argument over env var
-	if argPortalVersion != "" {
-		portalVersion = argPortalVersion
-	}
-
-	// ensure an output file is always specified
-	if output == "" {
-		output = getPortalOutputFile()
-	}
-
-	// perform the build
-	builder := xportal.Builder{
-		Compile: xportal.Compile{
-			Cgo: true,
-		},
-		PortalVersion: portalVersion,
-		Plugins:       plugins,
-		Replacements:  replacements,
-		RaceDetector:  raceDetector,
-		SkipBuild:     skipBuild,
-		SkipCleanup:   skipCleanup || scratchMode,
-		Debug:         buildDebugOutput,
-		BuildFlags:    buildFlags,
-		ModFlags:      modFlags,
-		ScratchMode:   scratchMode,
-		ScratchPath:   scratchPath,
-	}
-	err := builder.Build(ctx, output)
-	if err != nil {
-		log.Fatalf("[FATAL] %v", err)
-	}
-
-	// done if we're skipping the build
-	if builder.SkipBuild || scratchMode {
-		return nil
-	}
-
-	// if requested, run setcap to allow binding to low ports
-	err = setcapIfRequested(output)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getPortalOutputFile() string {
 	f := "." + string(filepath.Separator) + "portal"
-	// compiling for Windows or compiling on windows without setting GOOS, use .exe extension
 	if utils.GetGOOS() == "windows" {
 		f += ".exe"
 	}
 	return f
-}
-
-func runDev(ctx context.Context, args []string) error {
-	binOutput := getPortalOutputFile()
-
-	// get current/main module name and the root directory of the main module
-	//
-	// make sure the module being developed is replaced
-	// so that the local copy is used
-	//
-	// replace directives only apply to the top-level/main go.mod,
-	// and since this tool is a carry-through for the user's actual
-	// go.mod, we need to transfer their replace directives through
-	// to the one we're making
-	cmd := exec.Command(utils.GetGo(), "list", "-mod=readonly", "-m", "-json", "all")
-	cmd.Stderr = os.Stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("exec %v: %v: %s", cmd.Args, err, string(out))
-	}
-	currentModule, moduleDir, replacements, err := parseGoListJson(out)
-	if err != nil {
-		return fmt.Errorf("json parse error: %v", err)
-	}
-
-	// reconcile remaining path segments; for example if a module foo/a
-	// is rooted at directory path /home/foo/a, but the current directory
-	// is /home/foo/a/b, then the package to import should be foo/a/b
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("unable to determine current directory: %v", err)
-	}
-	importPath := normalizeImportPath(currentModule, cwd, moduleDir)
-
-	replacements = append(replacements, defaultReplacements...)
-
-	// build portal with this module plugged in
-	builder := xportal.Builder{
-		Compile: xportal.Compile{
-			Cgo: true,
-		},
-		PortalVersion: portalVersion,
-		Plugins: []xportal.Dependency{
-			{PackagePath: importPath},
-		},
-		Replacements: replacements,
-		RaceDetector: raceDetector,
-		SkipBuild:    skipBuild,
-		SkipCleanup:  skipCleanup,
-		Debug:        buildDebugOutput,
-	}
-	err = builder.Build(ctx, binOutput)
-	if err != nil {
-		return err
-	}
-
-	// if requested, run setcap to allow binding to low ports
-	err = setcapIfRequested(binOutput)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[INFO] Running %v\n\n", append([]string{binOutput}, args...))
-
-	cmd = exec.Command(binOutput, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if skipCleanup {
-			log.Printf("[INFO] Skipping cleanup as requested; leaving artifact: %s", binOutput)
-			return
-		}
-		err = os.Remove(binOutput)
-		if err != nil && !os.IsNotExist(err) {
-			log.Printf("[ERROR] Deleting temporary binary %s: %v", binOutput, err)
-		}
-	}()
-
-	return cmd.Wait()
 }
 
 func setcapIfRequested(output string) error {
@@ -265,7 +55,6 @@ func setcapIfRequested(output string) error {
 
 	args := []string{"setcap", "cap_net_bind_service=+ep", output}
 
-	// check if sudo isn't available, or we were instructed not to use it
 	_, sudoNotFound := exec.LookPath("sudo")
 	skipSudo := sudoNotFound != nil || os.Getenv("XPORTAL_SUDO") == "0"
 
@@ -308,22 +97,16 @@ func parseGoListJson(out []byte) (currentModule, moduleDir string, replacements 
 		}
 
 		if mod.Main {
-			// Current module is main module, retrieve the main module name and
-			// root directory path of the main module
 			currentModule = mod.Path
 			moduleDir = mod.Dir
 			replacements = append(replacements, xportal.NewReplace(currentModule, moduleDir))
 			continue
 		}
 
-		// Skip if current module is not replacement
 		if mod.Replace == nil {
 			continue
 		}
 
-		// 1. Target is module, version is required in this case
-		// 2A. Target is absolute path
-		// 2B. Target is relative path, proper handling is required in this case
 		dstPath := mod.Replace.Path
 		dstVersion := mod.Replace.Version
 		var dst string
@@ -336,7 +119,6 @@ func parseGoListJson(out []byte) (currentModule, moduleDir string, replacements 
 				dst = filepath.Join(moduleDir, dstPath)
 				log.Printf("[INFO] Resolved relative replacement %s to %s", dstPath, dst)
 			} else {
-				// moduleDir is not parsed yet, defer to later
 				dst = dstPath
 				unjoinedReplaces = append(unjoinedReplaces, len(replacements))
 			}
@@ -379,8 +161,6 @@ func splitWith(arg string) (module, version, replace string, err error) {
 	}
 	module = parts[0]
 
-	// accommodate module paths that have @ in them, but we can only tolerate that if there's also
-	// a version, otherwise we don't know if it's a version separator or part of the file path (see #109)
 	lastVersionSplit := strings.LastIndex(module, versionSplit)
 	if lastVersionSplit < 0 {
 		if replaceIdx := strings.Index(module, replaceSplit); replaceIdx >= 0 {
@@ -400,7 +180,6 @@ func splitWith(arg string) (module, version, replace string, err error) {
 	return
 }
 
-// xportalVersion returns a detailed version string, if available.
 func xportalVersion() string {
 	mod := goModule()
 	ver := mod.Version
@@ -425,10 +204,6 @@ func goModule() *debug.Module {
 	bi, ok := debug.ReadBuildInfo()
 	if ok {
 		mod.Path = bi.Main.Path
-		// The recommended way to build xportal involves
-		// creating a separate main module, which
-		// TODO: track related Go issue: https://github.com/golang/go/issues/29228
-		// once that issue is fixed, we should just be able to use bi.Main... hopefully.
 		for _, dep := range bi.Deps {
 			if dep.Path == "go.lumeweb.com/xportal" {
 				return dep

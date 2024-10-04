@@ -237,6 +237,14 @@ func (env environment) newGoModCommand(ctx context.Context, args ...string) *exe
 	return parseAndAppendFlags(cmd, env.modFlags)
 }
 
+// newGoGenerateCommand creates a new *exec.Cmd which assumes `args` are the args for `go generate` command. The
+// created command will also have the value of `XPORTAL_GO_MOD_FLAGS` appended to its arguments, if set.
+func (env environment) newGoGenerateCommand(ctx context.Context, args ...string) *exec.Cmd {
+	args = append([]string{"generate"}, args...)
+	cmd := env.newCommand(ctx, utils.GetGo(), args...)
+	return parseAndAppendFlags(cmd, env.modFlags)
+}
+
 func parseAndAppendFlags(cmd *exec.Cmd, flags string) *exec.Cmd {
 	if strings.TrimSpace(flags) == "" {
 		return cmd

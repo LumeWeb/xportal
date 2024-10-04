@@ -149,6 +149,12 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return err
 	}
 
+	// run go generate
+	generateCmd := buildEnv.newGoModCommand(ctx, "generate", "./...")
+	if err := buildEnv.runCommand(ctx, generateCmd); err != nil {
+		return err
+	}
+
 	if b.Debug {
 		vendorCmd := buildEnv.newGoModCommand(ctx, "vendor")
 		if err := buildEnv.runCommand(ctx, vendorCmd); err != nil {

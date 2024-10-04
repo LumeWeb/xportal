@@ -314,7 +314,7 @@ func (env environment) execGoGet(ctx context.Context, modulePath, moduleVersion,
 		portal += "@" + portalVersion
 	}
 
-	cmd := env.newGoBuildCommand(ctx, "get", "-d", "-v")
+	cmd := env.newGoBuildCommand(ctx, "get", "-v")
 	// using an empty string as an additional argument to "go get"
 	// breaks the command since it treats the empty string as a
 	// distinct argument, so we're using an if statement to avoid it.

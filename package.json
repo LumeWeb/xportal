@@ -2,10 +2,6 @@
     "name": "@lumeweb/xportal",
     "private": true,
     "version": "0.2.1",
-    "scripts": {
-        "changeset": "changeset",
-        "changeset:publish": "changeset publish; npm run changeset tag && git push --follow-tags"
-    },
     "devDependencies": {
         "@changesets/cli": "^2.27.1"
     }

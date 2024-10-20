@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.1
+
+### Patch Changes
+
+- 99c1000: update dependencies
+
 ## 0.2.0
 
 ### Minor Changes

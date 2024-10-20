@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.2
+
+### Patch Changes
+
+- f18ca0d: we need to call newGoGenerateCommand not newGoModCommand
+
 ## 0.2.1
 
 ### Patch Changes

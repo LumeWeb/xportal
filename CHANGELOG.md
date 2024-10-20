@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.3
+
+### Patch Changes
+
+- 1117c28: update dependencies
+
 ## 0.2.2
 
 ### Patch Changes

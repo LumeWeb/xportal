@@ -20,4 +20,4 @@
 # Go workspace file
 go.work
 go.work.sum
-node_modules/
+node_modules/pnpm-lock.yaml

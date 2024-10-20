@@ -16,7 +16,7 @@ on:
     paths:
       - '.changeset/**'
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency: ${{ github.workflow }}
 
 jobs:
   publish:

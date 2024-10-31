@@ -23,6 +23,7 @@ func init() {
 		{"github.com/tus/tusd/v2", "v2.4.0", "github.com/LumeWeb/tusd/v2", "v2.2.3-0.20241020013555-e29b4c6c01b7"},
 		{"github.com/ugorji/go/codec", "v1.1.4", "github.com/ugorji/go/codec", "v1.2.7"},
 		{"gorm.io/plugin/dbresolver", "v1.3.0", "gorm.io/plugin/dbresolver", "v1.5.3"},
+		{"go.lumeweb.com/web/go/portal-dashboard", "v0.2.0-portal-dashboard-go.0.20241031065849-6a925a3af8e5", "github.com/LumeWeb/web/go/portal-dashboard", "v0.0.0-20241031065849-6a925a3af8e5"},
 	}
 	// Loop through the list and create replacement rules
 	for _, repl := range replList {

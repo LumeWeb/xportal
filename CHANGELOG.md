@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.4
+
+### Patch Changes
+
+- 0ba0b86: Dummy version bump because proxy.golang.org has badly cached v0.2.3
+
 ## 0.2.3
 
 ### Patch Changes

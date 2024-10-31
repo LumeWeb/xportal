@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.5
+
+### Patch Changes
+
+- 1bd17ea: need to cheat and use a direct commit hash for now for the portal plugin due to go vanity funkiness
+
 ## 0.2.4
 
 ### Patch Changes

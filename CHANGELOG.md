@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.6
+
+### Patch Changes
+
+- eae2b2a: remove dashboard version hack
+
 ## 0.2.5
 
 ### Patch Changes

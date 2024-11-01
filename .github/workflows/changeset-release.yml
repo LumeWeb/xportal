@@ -8,9 +8,9 @@ on:
         required: true
         type: choice
         options:
-          - major
-          - minor
           - patch
+          - minor
+          - major
       description:
         description: 'Change Description (in markdown)'
         required: true

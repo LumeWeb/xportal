@@ -115,6 +115,7 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		skipCleanup:      b.SkipCleanup || b.ScratchMode,
 		buildFlags:       b.BuildFlags,
 		modFlags:         b.ModFlags,
+		replacements:     b.Replacements,
 	}
 
 	// initialize the go module
@@ -209,6 +210,7 @@ type environment struct {
 	skipCleanup      bool
 	buildFlags       string
 	modFlags         string
+	replacements     []Replace
 }
 
 // Close cleans up the build environment, including deleting
@@ -398,25 +400,61 @@ func sanitizePackagePath(path string) string {
 
 	return name + "_"
 }
-func getModuleCommit(ctx context.Context, buildEnv *environment, modulePath string) string {
-	// Use custom format to get full version string
+
+func getModuleInfo(ctx context.Context, buildEnv *environment, modulePath string) (version, commit, branch string) {
+	// Get the full module info including version
 	cmd := buildEnv.newGoBuildCommand(ctx, "list", "-m", "-f", "{{.Version}}", modulePath)
 	var buffer bytes.Buffer
 	cmd.Stdout = &buffer
 	err := buildEnv.runCommand(ctx, cmd)
 	if err != nil {
-		return "unknown"
+		return "unknown", "unknown", "unknown"
 	}
 
-	version := strings.TrimSpace(buffer.String())
+	version = strings.TrimSpace(buffer.String())
 
-	// Parse pseudo-version (e.g., v0.0.0-20240305120012-abcdef123456) to get commit
+	// Parse version string:
+	// v0.0.0-20240305120012-abcdef123456 (pseudo-version with commit)
+	// v0.0.0-20240305120012-branch.name-abcdef123456 (pseudo-version with branch)
+	// v1.2.3 (release version)
 	if strings.Contains(version, "-") {
 		parts := strings.Split(version, "-")
 		if len(parts) >= 3 {
-			return parts[len(parts)-1] // Get the commit hash from the end
+			commit = parts[len(parts)-1]
+			// If we have 4 parts, the branch name is embedded
+			if len(parts) >= 4 {
+				// Reconstruct branch name which might contain hyphens
+				branch = strings.Join(parts[2:len(parts)-1], "-")
+			}
 		}
 	}
 
-	return version // Return the version as-is if not a pseudo-version
+	// For replaced modules, try to get branch from git if it's a local replacement
+	if branch == "" {
+		for _, repl := range buildEnv.replacements {
+			if strings.HasPrefix(repl.Old.String(), modulePath) {
+				if strings.HasPrefix(repl.New.String(), "file://") || strings.HasPrefix(repl.New.String(), ".") || strings.HasPrefix(repl.New.String(), "/") {
+					gitPath := strings.TrimPrefix(repl.New.String(), "file://")
+					cmd := exec.Command("git", "-C", gitPath, "rev-parse", "--abbrev-ref", "HEAD")
+					out, err := cmd.Output()
+					if err == nil {
+						branch = strings.TrimSpace(string(out))
+					}
+				}
+				break
+			}
+		}
+	}
+
+	if version == "" {
+		version = "unknown"
+	}
+	if commit == "" {
+		commit = "unknown"
+	}
+	if branch == "" {
+		branch = "unknown"
+	}
+
+	return version, commit, branch
 }

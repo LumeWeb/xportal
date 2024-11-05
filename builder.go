@@ -163,21 +163,28 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return nil
 	}
 
-	coreCommit := getModuleCommit(ctx, buildEnv, buildEnv.portalModulePath)
-	// Prepare build info ldflags
+	_, coreCommit, coreBranch := getModuleInfo(ctx, buildEnv, buildEnv.portalModulePath)
 	buildInfoFlags := []string{
 		fmt.Sprintf("%s/build.Version=%s", defaultPortalModulePath, b.PortalVersion),
 		fmt.Sprintf("%s/build.GitCommit=%s", defaultPortalModulePath, coreCommit),
+		fmt.Sprintf("%s/build.GitBranch=%s", defaultPortalModulePath, coreBranch),
 		fmt.Sprintf("%s/build.BuildTime=%s", defaultPortalModulePath, time.Now().UTC().Format(time.RFC3339)),
+		fmt.Sprintf("%s/build.GoVersion=%s", defaultPortalModulePath, runtime.Version()),
+		fmt.Sprintf("%s/build.Platform=%s", defaultPortalModulePath, b.OS),
+		fmt.Sprintf("%s/build.Architecture=%s", defaultPortalModulePath, b.Arch),
 	}
 
 	// Add build info for each plugin
 	for _, plugin := range b.Plugins {
-		pluginCommit := getModuleCommit(ctx, buildEnv, plugin.PackagePath)
+		_, pluginCommit, pluginBranch := getModuleInfo(ctx, buildEnv, plugin.PackagePath)
 		buildInfoFlags = append(buildInfoFlags,
 			fmt.Sprintf("%s/build.Version=%s", plugin.PackagePath, plugin.Version),
 			fmt.Sprintf("%s/build.GitCommit=%s", plugin.PackagePath, pluginCommit),
+			fmt.Sprintf("%s/build.GitBranch=%s", plugin.PackagePath, pluginBranch),
 			fmt.Sprintf("%s/build.BuildTime=%s", plugin.PackagePath, time.Now().UTC().Format(time.RFC3339)),
+			fmt.Sprintf("%s/build.GoVersion=%s", plugin.PackagePath, runtime.Version()),
+			fmt.Sprintf("%s/build.Platform=%s", plugin.PackagePath, b.OS),
+			fmt.Sprintf("%s/build.Architecture=%s", plugin.PackagePath, b.Arch),
 		)
 	}
 	// Start building the compile command

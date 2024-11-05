@@ -50,8 +50,16 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 	tplCtx := goModTemplateContext{
 		PortalPlugin: portalModulePath,
 	}
+
+	// Convert plugin paths to pluginInfo structs
 	for _, p := range b.Plugins {
-		tplCtx.Plugins = append(tplCtx.Plugins, p.PackagePath)
+		// Create a sanitized package variable name
+		packageVar := sanitizePackagePath(p.PackagePath)
+
+		tplCtx.Plugins = append(tplCtx.Plugins, pluginInfo{
+			PackagePath: p.PackagePath,
+			PackageVar:  packageVar,
+		})
 	}
 
 	// evaluate the template for the main module
@@ -337,22 +345,78 @@ func (env environment) execGoGet(ctx context.Context, modulePath, moduleVersion,
 
 type goModTemplateContext struct {
 	PortalPlugin string
-	Plugins      []string
+	Plugins      []pluginInfo
+}
+
+type pluginInfo struct {
+	PackagePath string
+	PackageVar  string
 }
 
 const mainModuleTemplate = `package main
 
 import (
-	portalcmd "{{.PortalPlugin}}/cmd"
-	_ "{{.PortalPlugin}}/service"
+    portalcmd "{{.PortalPlugin}}/cmd"
+    _ "{{.PortalPlugin}}/service"
+    portalBuild "{{.PortalPlugin}}/build"
 
-	// plug in Portal plugins here
-	{{- range .Plugins}}
-	_ "{{.}}"
-	{{- end}}
+    // plug in Portal plugins here and their build info
+    {{- range .Plugins}}
+    _ "{{.}}"
+    _ "{{.}}/build"
+    {{- end}}
+)
+
+// Ensure build info is registered
+var (
+    _ = portalBuild.Default
+    {{- range .Plugins}}
+    _ = {{.PackageVar}}build.Default
+    {{- end}}
 )
 
 func main() {
-	portalcmd.Main()
+    portalcmd.Main()
 }
 `
+
+func sanitizePackagePath(path string) string {
+	// Remove common prefixes like github.com/
+	parts := strings.Split(path, "/")
+	if len(parts) > 2 {
+		parts = parts[2:] // Skip the first two parts (e.g., "github.com")
+	}
+
+	// Join remaining parts and sanitize
+	name := strings.Join(parts, "_")
+	name = strings.Map(func(r rune) rune {
+		if r == '-' || r == '.' {
+			return '_'
+		}
+		return r
+	}, name)
+
+	return name + "_"
+}
+func getModuleCommit(ctx context.Context, buildEnv *environment, modulePath string) string {
+	// Use custom format to get full version string
+	cmd := buildEnv.newGoBuildCommand(ctx, "list", "-m", "-f", "{{.Version}}", modulePath)
+	var buffer bytes.Buffer
+	cmd.Stdout = &buffer
+	err := buildEnv.runCommand(ctx, cmd)
+	if err != nil {
+		return "unknown"
+	}
+
+	version := strings.TrimSpace(buffer.String())
+
+	// Parse pseudo-version (e.g., v0.0.0-20240305120012-abcdef123456) to get commit
+	if strings.Contains(version, "-") {
+		parts := strings.Split(version, "-")
+		if len(parts) >= 3 {
+			return parts[len(parts)-1] // Get the commit hash from the end
+		}
+	}
+
+	return version // Return the version as-is if not a pseudo-version
+}

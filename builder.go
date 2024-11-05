@@ -80,7 +80,7 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		}
 	}
 
-	// set some defaults from the environment, if applicable
+	// Set default environment values if not specified
 	if b.OS == "" {
 		b.OS = utils.GetGOOS()
 	}
@@ -91,7 +91,7 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		b.ARM = os.Getenv("GOARM")
 	}
 
-	// prepare the build environment
+	// Prepare build environment
 	buildEnv, err := b.newEnvironment(ctx)
 	if err != nil {
 		return err
@@ -103,9 +103,8 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		}
 	}(buildEnv)
 
-	// generating windows resources for embedding
+	// Handle Windows-specific resource embedding
 	if b.OS == "windows" {
-		// get version string, we need to parse the output to get the exact version instead tag, branch or commit
 		cmd := buildEnv.newGoBuildCommand(ctx, "list", "-m", buildEnv.portalModulePath)
 		var buffer bytes.Buffer
 		cmd.Stdout = &buffer
@@ -114,7 +113,6 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 			return err
 		}
 
-		// output looks like: github.com/caddyserver/caddy/v2 v2.7.6
 		version := strings.TrimSpace(strings.TrimPrefix(buffer.String(), buildEnv.portalModulePath))
 		err = utils.WindowsResource(version, outputFile, buildEnv.tempFolder)
 		if err != nil {
@@ -124,7 +122,6 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 
 	if b.SkipBuild {
 		log.Printf("[INFO] Skipping build as requested")
-
 		return nil
 	}
 
@@ -143,13 +140,13 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 
 	log.Println("[INFO] Building Portal")
 
-	// tidy the module to ensure go.mod and go.sum are consistent with the module prereq
+	// Ensure module consistency
 	tidyCmd := buildEnv.newGoModCommand(ctx, "tidy", "-e")
 	if err := buildEnv.runCommand(ctx, tidyCmd); err != nil {
 		return err
 	}
 
-	// run go generate
+	// Run go generate
 	generateCmd := buildEnv.newGoGenerateCommand(ctx, "./...")
 	if err := buildEnv.runCommand(ctx, generateCmd); err != nil {
 		return err
@@ -166,26 +163,51 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return nil
 	}
 
-	// compile
-	cmd := buildEnv.newGoBuildCommand(ctx, "build",
-		"-o", absOutputFile,
-	)
+	coreCommit := getModuleCommit(ctx, buildEnv, buildEnv.portalModulePath)
+	// Prepare build info ldflags
+	buildInfoFlags := []string{
+		fmt.Sprintf("%s/build.Version=%s", defaultPortalModulePath, b.PortalVersion),
+		fmt.Sprintf("%s/build.GitCommit=%s", defaultPortalModulePath, coreCommit),
+		fmt.Sprintf("%s/build.BuildTime=%s", defaultPortalModulePath, time.Now().UTC().Format(time.RFC3339)),
+	}
+
+	// Add build info for each plugin
+	for _, plugin := range b.Plugins {
+		pluginCommit := getModuleCommit(ctx, buildEnv, plugin.PackagePath)
+		buildInfoFlags = append(buildInfoFlags,
+			fmt.Sprintf("%s/build.Version=%s", plugin.PackagePath, plugin.Version),
+			fmt.Sprintf("%s/build.GitCommit=%s", plugin.PackagePath, pluginCommit),
+			fmt.Sprintf("%s/build.BuildTime=%s", plugin.PackagePath, time.Now().UTC().Format(time.RFC3339)),
+		)
+	}
+	// Start building the compile command
+	cmd := buildEnv.newGoBuildCommand(ctx, "build", "-o", absOutputFile)
+
 	if b.Debug {
-		// support dlv
-		cmd.Args = append(cmd.Args, "-gcflags", "all=-N -l")
+		// Debug mode: include source info for debugger
+		cmd.Args = append(cmd.Args,
+			"-gcflags", "all=-N -l",
+			"-ldflags", strings.Join(buildInfoFlags, " "),
+		)
 	} else {
 		if buildEnv.buildFlags == "" {
+			// No custom flags: strip debug symbols and add build info
+			allFlags := append([]string{"-w", "-s"}, buildInfoFlags...)
 			cmd.Args = append(cmd.Args,
-				"-ldflags", "-w -s", // trim debug symbols
+				"-ldflags", strings.Join(allFlags, " "),
 				"-trimpath",
 				"-tags", "nobadger",
 			)
+		} else {
+			// Custom flags: only add build info
+			cmd.Args = append(cmd.Args, "-ldflags", strings.Join(buildInfoFlags, " "))
 		}
 	}
 
 	if b.RaceDetector {
 		cmd.Args = append(cmd.Args, "-race")
 	}
+
 	cmd.Env = env
 	err = buildEnv.runCommand(ctx, cmd)
 	if err != nil {
@@ -193,7 +215,6 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 	}
 
 	log.Printf("[INFO] Build complete: %s", outputFile)
-
 	return nil
 }
 

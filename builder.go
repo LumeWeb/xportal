@@ -163,30 +163,31 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return nil
 	}
 
-	_, coreCommit, coreBranch := getModuleInfo(ctx, buildEnv, buildEnv.portalModulePath)
+	version, coreCommit, coreBranch := getModuleInfo(ctx, buildEnv, buildEnv.portalModulePath)
 	buildInfoFlags := []string{
-		fmt.Sprintf("%s/build.Version=%s", defaultPortalModulePath, b.PortalVersion),
-		fmt.Sprintf("%s/build.GitCommit=%s", defaultPortalModulePath, coreCommit),
-		fmt.Sprintf("%s/build.GitBranch=%s", defaultPortalModulePath, coreBranch),
-		fmt.Sprintf("%s/build.BuildTime=%s", defaultPortalModulePath, time.Now().UTC().Format(time.RFC3339)),
-		fmt.Sprintf("%s/build.GoVersion=%s", defaultPortalModulePath, runtime.Version()),
-		fmt.Sprintf("%s/build.Platform=%s", defaultPortalModulePath, b.OS),
-		fmt.Sprintf("%s/build.Architecture=%s", defaultPortalModulePath, b.Arch),
+		fmt.Sprintf("-X %s/build.Version=%s", defaultPortalModulePath, version),
+		fmt.Sprintf("-X %s/build.GitCommit=%s", defaultPortalModulePath, coreCommit),
+		fmt.Sprintf("-X %s/build.GitBranch=%s", defaultPortalModulePath, coreBranch),
+		fmt.Sprintf("-X %s/build.BuildTime=%s", defaultPortalModulePath, time.Now().UTC().Format(time.RFC3339)),
+		fmt.Sprintf("-X %s/build.GoVersion=%s", defaultPortalModulePath, runtime.Version()),
+		fmt.Sprintf("-X %s/build.Platform=%s", defaultPortalModulePath, b.OS),
+		fmt.Sprintf("-X %s/build.Architecture=%s", defaultPortalModulePath, b.Arch),
 	}
 
-	// Add build info for each plugin
+	// Add build info for each plugin using resolved versions from Go
 	for _, plugin := range b.Plugins {
-		_, pluginCommit, pluginBranch := getModuleInfo(ctx, buildEnv, plugin.PackagePath)
+		pluginVersion, pluginCommit, pluginBranch := getModuleInfo(ctx, buildEnv, plugin.PackagePath)
 		buildInfoFlags = append(buildInfoFlags,
-			fmt.Sprintf("%s/build.Version=%s", plugin.PackagePath, plugin.Version),
-			fmt.Sprintf("%s/build.GitCommit=%s", plugin.PackagePath, pluginCommit),
-			fmt.Sprintf("%s/build.GitBranch=%s", plugin.PackagePath, pluginBranch),
-			fmt.Sprintf("%s/build.BuildTime=%s", plugin.PackagePath, time.Now().UTC().Format(time.RFC3339)),
-			fmt.Sprintf("%s/build.GoVersion=%s", plugin.PackagePath, runtime.Version()),
-			fmt.Sprintf("%s/build.Platform=%s", plugin.PackagePath, b.OS),
-			fmt.Sprintf("%s/build.Architecture=%s", plugin.PackagePath, b.Arch),
+			fmt.Sprintf("-X %s/build.Version=%s", plugin.PackagePath, pluginVersion),
+			fmt.Sprintf("-X %s/build.GitCommit=%s", plugin.PackagePath, pluginCommit),
+			fmt.Sprintf("-X %s/build.GitBranch=%s", plugin.PackagePath, pluginBranch),
+			fmt.Sprintf("-X %s/build.BuildTime=%s", plugin.PackagePath, time.Now().UTC().Format(time.RFC3339)),
+			fmt.Sprintf("-X %s/build.GoVersion=%s", plugin.PackagePath, runtime.Version()),
+			fmt.Sprintf("-X %s/build.Platform=%s", plugin.PackagePath, b.OS),
+			fmt.Sprintf("-X %s/build.Architecture=%s", plugin.PackagePath, b.Arch),
 		)
 	}
+
 	// Start building the compile command
 	cmd := buildEnv.newGoBuildCommand(ctx, "build", "-o", absOutputFile)
 
@@ -199,9 +200,8 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 	} else {
 		if buildEnv.buildFlags == "" {
 			// No custom flags: strip debug symbols and add build info
-			allFlags := append([]string{"-w", "-s"}, buildInfoFlags...)
 			cmd.Args = append(cmd.Args,
-				"-ldflags", strings.Join(allFlags, " "),
+				"-ldflags", fmt.Sprintf("-w -s %s", strings.Join(buildInfoFlags, " ")),
 				"-trimpath",
 				"-tags", "nobadger",
 			)

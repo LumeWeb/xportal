@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.7
+
+### Patch Changes
+
+- 8cc3788: add build info for core and plugins
+
 ## 0.2.6
 
 ### Patch Changes

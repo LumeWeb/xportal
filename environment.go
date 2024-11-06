@@ -15,8 +15,10 @@
 package xportal
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"go.lumeweb.com/xportal/internal/utils"
 	"log"
@@ -53,12 +55,8 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 
 	// Convert plugin paths to pluginInfo structs
 	for _, p := range b.Plugins {
-		// Create a sanitized package variable name
-		packageVar := sanitizePackagePath(p.PackagePath)
-
 		tplCtx.Plugins = append(tplCtx.Plugins, pluginInfo{
 			PackagePath: p.PackagePath,
-			PackageVar:  packageVar,
 		})
 	}
 
@@ -360,88 +358,106 @@ const mainModuleTemplate = `package main
 import (
     portalcmd "{{.PortalPlugin}}/cmd"
     _ "{{.PortalPlugin}}/service"
-    portalBuild "{{.PortalPlugin}}/build"
 
-    // plug in Portal plugins here and their build info
+    // plug in Portal plugins
     {{- range .Plugins}}
-    _ "{{.}}"
-    _ "{{.}}/build"
-    {{- end}}
-)
-
-// Ensure build info is registered
-var (
-    _ = portalBuild.Default
-    {{- range .Plugins}}
-    _ = {{.PackageVar}}build.Default
+    _ "{{.PackagePath}}"
     {{- end}}
 )
 
 func main() {
     portalcmd.Main()
-}
-`
-
-func sanitizePackagePath(path string) string {
-	// Remove common prefixes like github.com/
-	parts := strings.Split(path, "/")
-	if len(parts) > 2 {
-		parts = parts[2:] // Skip the first two parts (e.g., "github.com")
-	}
-
-	// Join remaining parts and sanitize
-	name := strings.Join(parts, "_")
-	name = strings.Map(func(r rune) rune {
-		if r == '-' || r == '.' {
-			return '_'
-		}
-		return r
-	}, name)
-
-	return name + "_"
-}
+}`
 
 func getModuleInfo(ctx context.Context, buildEnv *environment, modulePath string) (version, commit, branch string) {
-	// Get the full module info including version
-	cmd := buildEnv.newGoBuildCommand(ctx, "list", "-m", "-f", "{{.Version}}", modulePath)
+	// First try vendor directory
+	vendorMetaFile := filepath.Join(buildEnv.tempFolder, "vendor", "modules.txt")
+	if data, err := os.ReadFile(vendorMetaFile); err == nil {
+		scanner := bufio.NewScanner(strings.NewReader(string(data)))
+		for scanner.Scan() {
+			line := scanner.Text()
+			// modules.txt format: path version [=> replacement]
+			parts := strings.Fields(line)
+			if len(parts) >= 2 && parts[0] == modulePath {
+				version = parts[1]
+				break
+			}
+		}
+		fmt.Printf("[DEBUG] Found version %s in vendor/modules.txt for %s\n", version, modulePath)
+	}
+
+	// Then try module cache
+	cmd := buildEnv.newGoBuildCommand(ctx, "list", "-m", "-json", modulePath)
 	var buffer bytes.Buffer
 	cmd.Stdout = &buffer
 	err := buildEnv.runCommand(ctx, cmd)
 	if err != nil {
-		return "unknown", "unknown", "unknown"
+		fmt.Printf("[ERROR] Failed to get module info for %s: %v\n", modulePath, err)
+		return version, "unknown", "unknown" // Keep version if we found it in vendor
 	}
 
-	version = strings.TrimSpace(buffer.String())
+	var moduleInfo struct {
+		Path    string
+		Version string
+	}
+	if err := json.Unmarshal(buffer.Bytes(), &moduleInfo); err != nil {
+		return version, "unknown", "unknown" // Keep version if we found it in vendor
+	}
 
-	// Parse version string:
-	// v0.0.0-20240305120012-abcdef123456 (pseudo-version with commit)
-	// v0.0.0-20240305120012-branch.name-abcdef123456 (pseudo-version with branch)
-	// v1.2.3 (release version)
-	if strings.Contains(version, "-") {
-		parts := strings.Split(version, "-")
-		if len(parts) >= 3 {
-			commit = parts[len(parts)-1]
-			// If we have 4 parts, the branch name is embedded
-			if len(parts) >= 4 {
-				// Reconstruct branch name which might contain hyphens
-				branch = strings.Join(parts[2:len(parts)-1], "-")
+	if version == "" {
+		version = moduleInfo.Version
+	}
+
+	// Try to get git info from module cache
+	cmd = buildEnv.newGoBuildCommand(ctx, "env", "GOMODCACHE")
+	buffer.Reset()
+	cmd.Stdout = &buffer
+	err = buildEnv.runCommand(ctx, cmd)
+	if err == nil {
+		modcache := strings.TrimSpace(buffer.String())
+		infoPath := filepath.Join(modcache, "cache", "download", strings.ReplaceAll(modulePath, "/", string(filepath.Separator)), "@v", version+".info")
+
+		data, err := os.ReadFile(infoPath)
+		if err == nil {
+			var info struct {
+				Version string
+				Time    string
+				Origin  struct {
+					VCS  string
+					URL  string
+					Hash string
+					Ref  string
+				}
+			}
+			if err := json.Unmarshal(data, &info); err == nil {
+				commit = info.Origin.Hash
+				// Try to extract branch/tag from Ref
+				if info.Origin.Ref != "" {
+					if strings.HasPrefix(info.Origin.Ref, "refs/heads/") {
+						// Only set branch if it's actually a branch
+						branch = strings.TrimPrefix(info.Origin.Ref, "refs/heads/")
+					}
+					// Ignore refs/tags/ - let version field handle that info
+				}
 			}
 		}
 	}
 
-	// For replaced modules, try to get branch from git if it's a local replacement
-	if branch == "" {
-		for _, repl := range buildEnv.replacements {
-			if strings.HasPrefix(repl.Old.String(), modulePath) {
-				if strings.HasPrefix(repl.New.String(), "file://") || strings.HasPrefix(repl.New.String(), ".") || strings.HasPrefix(repl.New.String(), "/") {
-					gitPath := strings.TrimPrefix(repl.New.String(), "file://")
-					cmd := exec.Command("git", "-C", gitPath, "rev-parse", "--abbrev-ref", "HEAD")
-					out, err := cmd.Output()
-					if err == nil {
-						branch = strings.TrimSpace(string(out))
-					}
+	// If vendored, also check vendor/modules.txt for any additional metadata
+	if commit == "" && vendorMetaFile != "" {
+		vendorModuleFile := filepath.Join(buildEnv.tempFolder, "vendor", strings.ReplaceAll(modulePath, "/", string(filepath.Separator)), "module.info")
+		if data, err := os.ReadFile(vendorModuleFile); err == nil {
+			var info struct {
+				Hash string
+				Ref  string
+			}
+			if err := json.Unmarshal(data, &info); err == nil {
+				if info.Hash != "" {
+					commit = info.Hash
 				}
-				break
+				if info.Ref != "" {
+					branch = info.Ref
+				}
 			}
 		}
 	}
@@ -456,5 +472,6 @@ func getModuleInfo(ctx context.Context, buildEnv *environment, modulePath string
 		branch = "unknown"
 	}
 
+	fmt.Printf("[INFO] Module %s: version=%s commit=%s branch=%s\n", modulePath, version, commit, branch)
 	return version, commit, branch
 }

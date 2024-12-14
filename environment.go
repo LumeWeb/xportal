@@ -356,7 +356,7 @@ type pluginInfo struct {
 const mainModuleTemplate = `package main
 
 import (
-    portalcmd "{{.PortalPlugin}}/cmd"
+    portalcmd "{{.PortalPlugin}}/cmd/portal_embed"
     _ "{{.PortalPlugin}}/service"
 
     // plug in Portal plugins

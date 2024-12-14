@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.lumeweb.com/xportal/internal/utils"
 	"io"
 	"log"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"strings"
 
 	"go.lumeweb.com/xportal"
-	"go.lumeweb.com/xportal/internal/utils"
 )
 
 var (
@@ -41,11 +41,18 @@ func Main() {
 }
 
 func getPortalOutputFile() string {
-	f := "." + string(filepath.Separator) + "portal"
+	output := "portal"
 	if utils.GetGOOS() == "windows" {
-		f += ".exe"
+		output += ".exe"
 	}
-	return f
+
+	// Clean the path and ensure it starts with current directory
+	output = filepath.Clean(output)
+	if !filepath.IsAbs(output) {
+		output = "." + string(filepath.Separator) + output
+	}
+
+	return output
 }
 
 func setcapIfRequested(output string) error {

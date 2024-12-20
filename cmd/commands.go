@@ -179,7 +179,7 @@ func parsePluginsAndReplacements(cmd *cobra.Command) ([]xportal.Dependency, []xp
 }
 
 func createBuilder(portalVersion string, plugins []xportal.Dependency, replacements []xportal.Replace, scratchMode bool, scratchPath string) xportal.Builder {
-	return xportal.Builder{
+	builder := xportal.Builder{
 		Compile: xportal.Compile{
 			Cgo: true,
 		},
@@ -195,6 +195,12 @@ func createBuilder(portalVersion string, plugins []xportal.Dependency, replaceme
 		ScratchMode:   scratchMode,
 		ScratchPath:   scratchPath,
 	}
+
+	if disableCgo {
+		builder.Compile.Cgo = false
+	}
+
+	return builder
 }
 
 func finalizeBuild(output string) error {

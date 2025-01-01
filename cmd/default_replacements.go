@@ -23,6 +23,7 @@ func init() {
 		{"github.com/tus/tusd/v2", "v2.4.0", "github.com/LumeWeb/tusd/v2", "v2.2.3-0.20241020013555-e29b4c6c01b7"},
 		{"github.com/ugorji/go/codec", "v1.1.4", "github.com/ugorji/go/codec", "v1.2.7"},
 		{"gorm.io/plugin/dbresolver", "v1.3.0", "gorm.io/plugin/dbresolver", "v1.5.3"},
+		{"git.apache.org/thrift.git", "v0.0.0-20180902110319-2566ecd5d999", "github.com/apache/thrift", "v0.0.0-20180902110319-2566ecd5d999"},
 	}
 	// Loop through the list and create replacement rules
 	for _, repl := range replList {

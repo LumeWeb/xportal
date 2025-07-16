@@ -17,7 +17,7 @@ func init() {
 		newVer string
 	}{
 		{"git.apache.org/thrift.git", "v0.0.0-20180902110319-2566ecd5d999", "github.com/apache/thrift", "v0.0.0-20180902110319-2566ecd5d999"},
-		{"github.com/go-viper/mapstructure/v2", "v2.2.1", "github.com/LumeWeb/mapstructure/v2", "v2.0.0-20241213212524-92525f5828be"},
+		{"github.com/go-viper/mapstructure/v2", "", "github.com/LumeWeb/mapstructure/v2", "v2.0.0-20241213212524-92525f5828be"},
 	}
 	// Loop through the list and create replacement rules
 	for _, repl := range replList {

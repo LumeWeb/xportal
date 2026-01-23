@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.15 (2026-01-23)
+
+### Fixes
+
+- mapstructure replacement no longer needed
+
 ## 0.2.7
 
 ### Patch Changes

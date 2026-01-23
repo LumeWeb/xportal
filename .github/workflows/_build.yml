@@ -1,31 +1,29 @@
 name: Build
 
 on:
-    workflow_call:
+  workflow_call:
 
 
 permissions:
-    contents: read
-    checks: write
+  contents: read
+  checks: write
 
 jobs:
-    build:
-        name: Build
-        runs-on: ubuntu-latest
-        steps:
-            -   name: Checkout Repo
-                uses: actions/checkout@v4
-                with:
-                    submodules: true
-            -   name: Setup Go
-                uses: actions/setup-go@v5
-                with:
-                    go-version: 1.22.1
-            -   name: Setup Node.js 20.x
-                uses: actions/setup-node@v4
-                with:
-                    node-version: 20.x
-            -   run: npm ci
-            -   name: Build
-                run: |
-                    make
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Setup Go
+        uses: LumeWeb/workflows/.github/actions/setup-go@develop
+
+      - name: Setup JS
+        uses: LumeWeb/workflows/.github/actions/setup-js@develop
+
+      - run: npm ci
+      - name: Build
+        run: |
+          make

@@ -10,4 +10,4 @@ build: go-build
 	@echo "Build completed."
 
 go-build:
-	go build -ldflags='-s -w -linkmode external -extldflags "-static"' -o xportal ./cmd/xportal
+	go build -ldflags='-s -w -linkmode external -extldflags "-static"' -o xportal ./xcmd/xportal

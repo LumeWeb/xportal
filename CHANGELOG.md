@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.16 (2026-04-26)
+
+### Fixes
+
+- move cmd/xportal to xcmd/xportal
+
 ## 0.2.15 (2026-01-23)
 
 ### Fixes

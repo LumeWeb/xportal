@@ -172,6 +172,10 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		fmt.Sprintf("-X %s/build.GoVersion=%s", defaultPortalModulePath, runtime.Version()),
 		fmt.Sprintf("-X %s/build.Platform=%s", defaultPortalModulePath, b.OS),
 		fmt.Sprintf("-X %s/build.Architecture=%s", defaultPortalModulePath, b.Arch),
+		// Prevent panic when two packages register the same proto file name
+		// (e.g. go-libp2p-pubsub and go.etcd.io/etcd both register "rpc.proto").
+		// See https://protobuf.dev/reference/go/faq#namespace-conflict
+		"-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn",
 	}
 
 	// Add build info for each plugin using resolved versions from Go

@@ -216,6 +216,10 @@ func finalizeBuild(output string) error {
 		fmt.Println()
 		fmt.Printf("%s version\n", output)
 		execCmd := exec.Command(output, "version")
+		// Set protobuf conflict policy to warn so that duplicate proto file
+		// registrations (e.g. rpc.proto from both go-libp2p-pubsub and etcd)
+		// emit a warning instead of panicking.
+		execCmd.Env = append(os.Environ(), "GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn")
 		execCmd.Stdout = os.Stdout
 		execCmd.Stderr = os.Stderr
 		err = execCmd.Run()

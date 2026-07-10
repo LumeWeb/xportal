@@ -1,5 +1,11 @@
 # @lumeweb/xportal
 
+## 0.2.17 (2026-07-10)
+
+### Fixes
+
+- prevent protobuf rpc.proto registration panic
+
 ## 0.2.16 (2026-04-26)
 
 ### Fixes

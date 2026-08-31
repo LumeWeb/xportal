@@ -112,6 +112,7 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		timeoutGoGet:     b.TimeoutGet,
 		skipCleanup:      b.SkipCleanup || b.ScratchMode,
 		buildFlags:       b.BuildFlags,
+		buildFlagsExtra:  b.BuildFlagsExtra,
 		modFlags:         b.ModFlags,
 		replacements:     b.Replacements,
 	}
@@ -207,6 +208,7 @@ type environment struct {
 	timeoutGoGet     time.Duration
 	skipCleanup      bool
 	buildFlags       string
+	buildFlagsExtra  string
 	modFlags         string
 	replacements     []Replace
 }

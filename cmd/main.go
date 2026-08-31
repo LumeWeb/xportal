@@ -26,6 +26,7 @@ var (
 	skipCleanup      = os.Getenv("XPORTAL_SKIP_CLEANUP") == "1" || skipBuild
 	buildDebugOutput = os.Getenv("XPORTAL_DEBUG") == "1"
 	buildFlags       = os.Getenv("XPORTAL_GO_BUILD_FLAGS")
+	buildFlagsExtra  = os.Getenv("XPORTAL_GO_BUILD_FLAGS_EXTRA")
 	modFlags         = os.Getenv("XPORTAL_GO_MOD_FLAGS")
 	disableCgo       = os.Getenv("XPORTAL_DISABLE_CGO") == "1"
 )

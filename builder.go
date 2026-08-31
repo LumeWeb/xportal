@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Masterminds/semver/v3"
+	"github.com/google/shlex"
 	"go.lumeweb.com/xportal/internal/utils"
 	"log"
 	"os"
@@ -37,19 +38,20 @@ import (
 // configuration it represents.
 type Builder struct {
 	Compile
-	PortalVersion string        `json:"portal_version,omitempty"`
-	Plugins       []Dependency  `json:"plugins,omitempty"`
-	Replacements  []Replace     `json:"replacements,omitempty"`
-	TimeoutGet    time.Duration `json:"timeout_get,omitempty"`
-	TimeoutBuild  time.Duration `json:"timeout_build,omitempty"`
-	RaceDetector  bool          `json:"race_detector,omitempty"`
-	SkipCleanup   bool          `json:"skip_cleanup,omitempty"`
-	SkipBuild     bool          `json:"skip_build,omitempty"`
-	Debug         bool          `json:"debug,omitempty"`
-	BuildFlags    string        `json:"build_flags,omitempty"`
-	ModFlags      string        `json:"mod_flags,omitempty"`
-	ScratchMode   bool          `json:"scratch_mode,omitempty"`
-	ScratchPath   string        `json:"scratch_path,omitempty"`
+	PortalVersion   string        `json:"portal_version,omitempty"`
+	Plugins         []Dependency  `json:"plugins,omitempty"`
+	Replacements    []Replace     `json:"replacements,omitempty"`
+	TimeoutGet      time.Duration `json:"timeout_get,omitempty"`
+	TimeoutBuild    time.Duration `json:"timeout_build,omitempty"`
+	RaceDetector    bool          `json:"race_detector,omitempty"`
+	SkipCleanup     bool          `json:"skip_cleanup,omitempty"`
+	SkipBuild       bool          `json:"skip_build,omitempty"`
+	Debug           bool          `json:"debug,omitempty"`
+	BuildFlags      string        `json:"build_flags,omitempty"`
+	BuildFlagsExtra string        `json:"build_flags_extra,omitempty"`
+	ModFlags        string        `json:"mod_flags,omitempty"`
+	ScratchMode     bool          `json:"scratch_mode,omitempty"`
+	ScratchPath     string        `json:"scratch_path,omitempty"`
 }
 
 // Build builds Port at the configured version with the
@@ -217,6 +219,16 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 
 	if b.RaceDetector {
 		cmd.Args = append(cmd.Args, "-race")
+	}
+
+	// Extra build flags are always applied, on top of both the
+	// default flags and any custom XPORTAL_GO_BUILD_FLAGS.
+	if buildEnv.buildFlagsExtra != "" {
+		extraFlags, err := shlex.Split(buildEnv.buildFlagsExtra)
+		if err != nil {
+			return fmt.Errorf("parsing XPORTAL_GO_BUILD_FLAGS_EXTRA: %w", err)
+		}
+		cmd.Args = append(cmd.Args, extraFlags...)
 	}
 
 	cmd.Env = env

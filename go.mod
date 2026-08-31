@@ -1,4 +1,4 @@
-module go.lumeweb.com/xportal // v0.2.19
+module go.lumeweb.com/xportal // v0.2.20
 
 go 1.22
 

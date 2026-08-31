@@ -1,5 +1,16 @@
 # @lumeweb/xportal
 
+## 0.2.20 (2026-08-31)
+
+### Features
+
+- run go generate inside each plugin dependency
+
+### Fixes
+
+- apply target platform env to plugin generators
+- keep host env for plugin generators when cross-compiling
+
 ## 0.2.19 (2026-08-31)
 
 ### Features

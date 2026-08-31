@@ -48,6 +48,22 @@ func TestParseExcludeArgs(t *testing.T) {
 	}
 }
 
+func TestParseExcludeTrimsTrailingSlash(t *testing.T) {
+	cmd := newTestBuildCommand(t)
+	if err := cmd.Flags().Set("exclude", "foo/bar/@v1.2.3"); err != nil {
+		t.Fatalf("Set exclude: %v", err)
+	}
+
+	_, _, exclusions, err := parsePluginsAndReplacements(cmd)
+	if err != nil {
+		t.Fatalf("parsePluginsAndReplacements: %v", err)
+	}
+	want := []xportal.Exclude{xportal.NewExclude("foo/bar", "v1.2.3")}
+	if !reflect.DeepEqual(exclusions, want) {
+		t.Errorf("exclusions = %+v, want %+v", exclusions, want)
+	}
+}
+
 func TestParseExcludeWithoutVersion(t *testing.T) {
 	cmd := newTestBuildCommand(t)
 	if err := cmd.Flags().Set("exclude", "foo/bar"); err != nil {

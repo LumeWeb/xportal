@@ -189,6 +189,7 @@ func parsePluginsAndReplacements(cmd *cobra.Command) ([]xportal.Dependency, []xp
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		mod = strings.TrimSuffix(mod, "/")
 		if ver == "" {
 			return nil, nil, nil, fmt.Errorf("exclude directive for %s requires a version: %s", mod, excludeArg)
 		}

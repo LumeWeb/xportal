@@ -169,9 +169,12 @@ nextPlugin:
 		// if module is locally available, do not "go get" it;
 		// also note that we iterate and check prefixes, because
 		// a plugin package may be a subfolder of a module, i.e.
-		// foo/a/plugin is within module foo/a.
+		// foo/a/plugin is within module foo/a. Requiring the trailing
+		// path separator avoids matching lexical submodules, e.g. a
+		// replacement for "foo" must not swallow the distinct module
+		// "foo-bar".
 		for repl := range replaced {
-			if strings.HasPrefix(p.PackagePath, repl) {
+			if strings.HasPrefix(p.PackagePath, repl+"/") {
 				continue nextPlugin
 			}
 		}
@@ -232,11 +235,20 @@ func (env environment) newCommand(ctx context.Context, command string, args ...s
 	return cmd
 }
 
-// newGoBuildCommand creates a new *exec.Cmd which assumes the first element in `args` is one of: build, clean, get, install, list, run, or test. The
-// created command will also have the value of `XPORTAL_GO_BUILD_FLAGS` appended to its arguments, if set.
+// newGoBuildCommand creates a new *exec.Cmd which assumes the first element
+// in `args` is one of: build, clean, get, install, list, run, or test.
+// The generated command will also have the value of `XPORTAL_GO_BUILD_FLAGS`
+// inserted right after the go subcommand, so the flags are parsed before any
+// positional arguments (e.g. `go build -o out` or `go list -m <module>`).
 func (env environment) newGoBuildCommand(ctx context.Context, args ...string) *exec.Cmd {
-	cmd := env.newCommand(ctx, utils.GetGo(), args...)
-	return parseAndAppendFlags(cmd, env.buildFlags)
+	subcommand := ""
+	if len(args) > 0 {
+		subcommand = args[0]
+	}
+	cmd := env.newCommand(ctx, utils.GetGo(), subcommand)
+	cmd = parseAndAppendFlags(cmd, env.buildFlags)
+	cmd.Args = append(cmd.Args, args[1:]...)
+	return cmd
 }
 
 // newGoModCommand creates a new *exec.Cmd which assumes `args` are the args for `go mod` command. The
@@ -358,6 +370,8 @@ type pluginInfo struct {
 const mainModuleTemplate = `package main
 
 import (
+    _ "time/tzdata"
+
     portalcmd "{{.PortalPlugin}}/cmd/portal_embed"
     _ "{{.PortalPlugin}}/service"
 

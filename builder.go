@@ -41,6 +41,7 @@ type Builder struct {
 	PortalVersion   string        `json:"portal_version,omitempty"`
 	Plugins         []Dependency  `json:"plugins,omitempty"`
 	Replacements    []Replace     `json:"replacements,omitempty"`
+	Exclusions      []Exclude     `json:"exclusions,omitempty"`
 	TimeoutGet      time.Duration `json:"timeout_get,omitempty"`
 	TimeoutBuild    time.Duration `json:"timeout_build,omitempty"`
 	RaceDetector    bool          `json:"race_detector,omitempty"`
@@ -310,6 +311,30 @@ func NewReplace(old, new string) Replace {
 		Old: ReplacementPath(old),
 		New: ReplacementPath(new),
 	}
+}
+
+// Exclude represents a Go module exclusion directive. Unlike a
+// replace directive, `go mod edit -exclude` requires both the module
+// path and a specific version to be excluded.
+type Exclude struct {
+	// The name (import path) of the Go module to exclude.
+	Module string `json:"module,omitempty"`
+
+	// The version of the Go module to exclude.
+	Version string `json:"version,omitempty"`
+}
+
+// NewExclude creates a new instance of Exclude provided a Go module
+// path and the version to exclude.
+func NewExclude(module, version string) Exclude {
+	return Exclude{
+		Module:  module,
+		Version: version,
+	}
+}
+
+func (e Exclude) String() string {
+	return e.Module + "@" + e.Version
 }
 
 // newTempFolder creates a new folder in a temporary location.

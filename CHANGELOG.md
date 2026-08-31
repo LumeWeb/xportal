@@ -1,5 +1,15 @@
 # @lumeweb/xportal
 
+## 0.2.19 (2026-08-31)
+
+### Features
+
+- add go mod exclude directive support
+
+### Fixes
+
+- trim trailing slash from --exclude module paths
+
 ## 0.2.18 (2026-08-31)
 
 ### Features

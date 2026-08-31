@@ -155,6 +155,25 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		return err
 	}
 
+	// Run generators shipped with each plugin. Some plugins only materialize
+	// assets via `go generate`, so they must run before the build can succeed.
+	// Module cache dirs are read-only by default, so make each plugin's dir
+	// writable first.
+	for _, plugin := range b.Plugins {
+		dir, err := buildEnv.pluginModuleDir(ctx, plugin.PackagePath)
+		if err != nil {
+			return err
+		}
+		if err := makeWritable(dir); err != nil {
+			return err
+		}
+		pluginGenCmd := buildEnv.newGoGenerateCommand(ctx, "./...")
+		pluginGenCmd.Dir = dir
+		if err := buildEnv.runCommand(ctx, pluginGenCmd); err != nil {
+			return err
+		}
+	}
+
 	// Run go generate
 	generateCmd := buildEnv.newGoGenerateCommand(ctx, "./...")
 	if err := buildEnv.runCommand(ctx, generateCmd); err != nil {

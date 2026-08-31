@@ -300,6 +300,41 @@ func parseAndAppendFlags(cmd *exec.Cmd, flags string) *exec.Cmd {
 	return cmd
 }
 
+// pluginModuleDir resolves the absolute directory of the given module within
+// the build environment's module graph (e.g. a plugin dependency). It uses
+// `go list -m -f '{{.Dir}}'` so the path is resolved from the resolved module
+// versions, including any replacements.
+func (env environment) pluginModuleDir(ctx context.Context, modulePath string) (string, error) {
+	cmd := env.newGoBuildCommand(ctx, "list", "-m", "-f", "{{.Dir}}", modulePath)
+	var buffer bytes.Buffer
+	cmd.Stdout = &buffer
+	if err := env.runCommand(ctx, cmd); err != nil {
+		return "", err
+	}
+	dir := strings.TrimSpace(buffer.String())
+	if dir == "" {
+		return "", fmt.Errorf("could not resolve module directory for %s", modulePath)
+	}
+	return dir, nil
+}
+
+// makeWritable recursively adds the user-write bit to every entry under dir.
+// Go module cache directories are read-only by default, but plugins with
+// generators write generated assets into their own module directory, so it
+// must be writable first.
+func makeWritable(dir string) error {
+	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		return os.Chmod(path, info.Mode().Perm()|0o200)
+	})
+}
+
 func (env environment) runCommand(ctx context.Context, cmd *exec.Cmd) error {
 	deadline, ok := ctx.Deadline()
 	var timeout time.Duration

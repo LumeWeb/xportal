@@ -116,6 +116,12 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		}
 
 		version := strings.TrimSpace(strings.TrimPrefix(buffer.String(), buildEnv.portalModulePath))
+		// if the core is being replaced (e.g. via --with), `go list -m`
+		// appends "=> <replacement>" to the output; drop it so we keep
+		// just the actual version for the embedded Windows metadata.
+		if i := strings.Index(version, "=>"); i != -1 {
+			version = strings.TrimSpace(version[:i])
+		}
 		err = utils.WindowsResource(version, outputFile, buildEnv.tempFolder)
 		if err != nil {
 			return err

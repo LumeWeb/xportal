@@ -170,8 +170,12 @@ func (b Builder) Build(ctx context.Context, outputFile string) error {
 		pluginGenCmd := buildEnv.newGoGenerateCommand(ctx, "./...")
 		pluginGenCmd.Dir = dir
 		// Match the target build platform so generators materialize assets for
-		// the configured GOOS/GOARCH rather than the host.
-		pluginGenCmd.Env = env
+		// the configured GOOS/GOARCH. When cross-compiling, generators built
+		// for the target cannot execute on the host, so keep the host env and
+		// apply the target platform only to the final build command.
+		if b.OS == runtime.GOOS && b.Arch == runtime.GOARCH {
+			pluginGenCmd.Env = env
+		}
 		if err := buildEnv.runCommand(ctx, pluginGenCmd); err != nil {
 			return err
 		}

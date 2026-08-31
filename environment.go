@@ -115,6 +115,7 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		buildFlagsExtra:  b.BuildFlagsExtra,
 		modFlags:         b.ModFlags,
 		replacements:     b.Replacements,
+		exclusions:       b.Exclusions,
 	}
 
 	// initialize the go module
@@ -136,6 +137,22 @@ func (b Builder) newEnvironment(ctx context.Context) (*environment, error) {
 		cmd := env.newGoModCommand(ctx, "edit")
 		for o, n := range replaced {
 			cmd.Args = append(cmd.Args, "-replace", fmt.Sprintf("%s=%s", o, n))
+		}
+		err := env.runCommand(ctx, cmd)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// specify module exclusions before pinning versions
+	if len(b.Exclusions) > 0 {
+		cmd := env.newGoModCommand(ctx, "edit")
+		for _, e := range b.Exclusions {
+			if e.Module == "" || e.Version == "" {
+				return nil, fmt.Errorf("exclude directive requires both module path and version")
+			}
+			log.Printf("[INFO] Exclude %s", e.String())
+			cmd.Args = append(cmd.Args, "-exclude", e.String())
 		}
 		err := env.runCommand(ctx, cmd)
 		if err != nil {
@@ -214,6 +231,7 @@ type environment struct {
 	buildFlagsExtra  string
 	modFlags         string
 	replacements     []Replace
+	exclusions       []Exclude
 }
 
 // Close cleans up the build environment, including deleting

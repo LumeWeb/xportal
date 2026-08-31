@@ -19,13 +19,15 @@ func init() {
 	buildCommand.Flags().StringArray("with", []string{}, "portal modules package path to include in the build")
 	buildCommand.Flags().String("output", "", "change the output file name")
 	buildCommand.Flags().StringArray("replace", []string{}, "like --with but for Go modules")
+	buildCommand.Flags().StringArray("exclude", []string{}, "add an exclude directive to go.mod for a Go module@version")
 }
 
 var buildCommand = &cobra.Command{
 	Use: `build [<portal_version>]
     [--output <file>]
     [--with <module[@version][=replacement]>...]
-    [--replace <module[@version]=replacement>...]`,
+    [--replace <module[@version]=replacement>...]
+    [--exclude <module@version>...]`,
 	Long: `
 <portal_version> is the core Portal version to build; defaults to PORTAL_VERSION env variable or latest.
 This can be the keyword latest, which will use the latest stable tag, or any git ref such as:
@@ -38,6 +40,7 @@ Flags:
  --output changes the output file.
  --with can be used multiple times to add plugins by specifying the Go module name and optionally its version, similar to go get. Module name is required, but specific version and/or local replacement are optional.
  --replace is like --with, but does not add a blank import to the code; it only writes a replace directive to go.mod, which is useful when developing on Portal's dependencies (ones that are not Portal modules). Try this if you got an error when using --with, like cannot find module providing package.
+ --exclude adds an exclude directive for a Go module and version to go.mod, which prevents that module version from being selected.
 `,
 	Short: "Compile custom portal binaries",
 	Args:  cobra.MinimumNArgs(0),
@@ -79,7 +82,7 @@ func runBuild(cmd *cobra.Command, args []string, scratchMode bool) error {
 		argPortalVersion = args[0]
 	}
 
-	plugins, replacements, err := parsePluginsAndReplacements(cmd)
+	plugins, replacements, exclusions, err := parsePluginsAndReplacements(cmd)
 	if err != nil {
 		return err
 	}
@@ -97,7 +100,7 @@ func runBuild(cmd *cobra.Command, args []string, scratchMode bool) error {
 		output = getPortalOutputFile()
 	}
 
-	builder := createBuilder(portalVersion, plugins, replacements, scratchMode, scratchPath)
+	builder := createBuilder(portalVersion, plugins, replacements, exclusions, scratchMode, scratchPath)
 	err = builder.Build(cmd.Context(), output)
 	if err != nil {
 		log.Fatalf("[FATAL] %v", err)
@@ -126,7 +129,7 @@ func runDev(ctx context.Context, args []string) error {
 
 	replacements = append(replacements, defaultReplacements...)
 
-	builder := createBuilder(portalVersion, []xportal.Dependency{{PackagePath: importPath}}, replacements, false, "")
+	builder := createBuilder(portalVersion, []xportal.Dependency{{PackagePath: importPath}}, replacements, nil, false, "")
 	err = builder.Build(ctx, binOutput)
 	if err != nil {
 		return err
@@ -140,24 +143,30 @@ func runDev(ctx context.Context, args []string) error {
 	return runPortal(binOutput, args)
 }
 
-func parsePluginsAndReplacements(cmd *cobra.Command) ([]xportal.Dependency, []xportal.Replace, error) {
+func parsePluginsAndReplacements(cmd *cobra.Command) ([]xportal.Dependency, []xportal.Replace, []xportal.Exclude, error) {
 	var plugins []xportal.Dependency
 	var replacements []xportal.Replace
+	var exclusions []xportal.Exclude
 
 	withArgs, err := cmd.Flags().GetStringArray("with")
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse --with arguments: %s", err.Error())
+		return nil, nil, nil, fmt.Errorf("unable to parse --with arguments: %s", err.Error())
 	}
 
 	replaceArgs, err := cmd.Flags().GetStringArray("replace")
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse --replace arguments: %s", err.Error())
+		return nil, nil, nil, fmt.Errorf("unable to parse --replace arguments: %s", err.Error())
+	}
+
+	excludeArgs, err := cmd.Flags().GetStringArray("exclude")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to parse --exclude arguments: %s", err.Error())
 	}
 
 	for _, withArg := range withArgs {
 		mod, ver, repl, err := splitWith(withArg)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		mod = strings.TrimSuffix(mod, "/")
 		plugins = append(plugins, xportal.Dependency{
@@ -170,31 +179,44 @@ func parsePluginsAndReplacements(cmd *cobra.Command) ([]xportal.Dependency, []xp
 	for _, withArg := range replaceArgs {
 		mod, ver, repl, err := splitWith(withArg)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		handleReplace(withArg, mod, ver, repl, &replacements)
 	}
 
-	return plugins, replacements, nil
+	for _, excludeArg := range excludeArgs {
+		mod, ver, _, err := splitWith(excludeArg)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		mod = strings.TrimSuffix(mod, "/")
+		if ver == "" {
+			return nil, nil, nil, fmt.Errorf("exclude directive for %s requires a version: %s", mod, excludeArg)
+		}
+		exclusions = append(exclusions, xportal.NewExclude(mod, ver))
+	}
+
+	return plugins, replacements, exclusions, nil
 }
 
-func createBuilder(portalVersion string, plugins []xportal.Dependency, replacements []xportal.Replace, scratchMode bool, scratchPath string) xportal.Builder {
+func createBuilder(portalVersion string, plugins []xportal.Dependency, replacements []xportal.Replace, exclusions []xportal.Exclude, scratchMode bool, scratchPath string) xportal.Builder {
 	builder := xportal.Builder{
 		Compile: xportal.Compile{
 			Cgo: true,
 		},
-		PortalVersion:   portalVersion,
-		Plugins:         plugins,
-		Replacements:    append(replacements, defaultReplacements...),
-		RaceDetector:    raceDetector,
-		SkipBuild:       skipBuild,
-		SkipCleanup:     skipCleanup || scratchMode,
-		Debug:           buildDebugOutput,
-		BuildFlags:      buildFlags,
-		BuildFlagsExtra: buildFlagsExtra,
-		ModFlags:        modFlags,
-		ScratchMode:     scratchMode,
-		ScratchPath:     scratchPath,
+		PortalVersion:    portalVersion,
+		Plugins:          plugins,
+		Replacements:     append(replacements, defaultReplacements...),
+		Exclusions:       exclusions,
+		RaceDetector:     raceDetector,
+		SkipBuild:        skipBuild,
+		SkipCleanup:      skipCleanup || scratchMode,
+		Debug:            buildDebugOutput,
+		BuildFlags:       buildFlags,
+		BuildFlagsExtra:  buildFlagsExtra,
+		ModFlags:         modFlags,
+		ScratchMode:      scratchMode,
+		ScratchPath:      scratchPath,
 	}
 
 	if disableCgo {

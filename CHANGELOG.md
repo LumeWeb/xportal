@@ -1,5 +1,15 @@
 # @lumeweb/xportal
 
+## 0.2.18 (2026-08-31)
+
+### Features
+
+- add XPORTAL_GO_BUILD_FLAGS_EXTRA
+
+### Fixes
+
+- backport xcaddy build bugfixes, add AGENTS.md
+
 ## 0.2.17 (2026-07-10)
 
 ### Fixes
